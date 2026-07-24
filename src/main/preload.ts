@@ -11,6 +11,9 @@ import {
 
 const echoApi: EchoApi = {
   getDashboard: () => ipcRenderer.invoke('echo:get-dashboard'),
+  getStudyActivity: (year: number) =>
+    ipcRenderer.invoke('echo:get-study-activity', year),
+  checkInToday: () => ipcRenderer.invoke('echo:check-in-today'),
   getArticle: (articleId: string) =>
     ipcRenderer.invoke('echo:get-article', articleId),
   parseArticle: (input: ParseArticleInput) =>

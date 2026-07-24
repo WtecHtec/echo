@@ -21,7 +21,11 @@ export type IconName =
   | 'clock'
   | 'key'
   | 'connection'
-  | 'search';
+  | 'search'
+  | 'calendar'
+  | 'flame'
+  | 'trend'
+  | 'pencil';
 
 const paths: Record<IconName, ReactElement> = {
   articles: (
@@ -108,6 +112,27 @@ const paths: Record<IconName, ReactElement> = {
     <>
       <circle cx="10.5" cy="10.5" r="6.5" />
       <path d="m15.5 15.5 4 4" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect height="17" rx="2" width="18" x="3" y="4" />
+      <path d="M7 2v4M17 2v4M3 9h18M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" />
+    </>
+  ),
+  flame: (
+    <path d="M12.1 21c4 0 7-2.8 7-6.8 0-3.2-1.7-6.1-5.2-9.2.1 2.7-1.3 4.4-2.4 5.2.1-2.6-1.4-5-3.6-6.7.1 3.4-3 5.6-3 10.7 0 4 3.1 6.8 7.2 6.8Zm0 0c-1.8 0-3.1-1.3-3.1-3 0-1.5.8-2.6 2.6-4.3 0 1.4.7 2.3 1.4 2.8.5-.8.9-1.7.8-2.9 1.1 1.1 1.5 2.5 1.4 4.1 0 1.9-1.3 3.3-3.1 3.3Z" />
+  ),
+  trend: (
+    <>
+      <path d="m4 17 5-5 3.5 3.5L20 8" />
+      <path d="M15 8h5v5" />
+    </>
+  ),
+  pencil: (
+    <>
+      <path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z" />
+      <path d="m14.5 7 2.8 2.8M4 20h6" />
     </>
   ),
 };

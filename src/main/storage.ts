@@ -12,11 +12,33 @@ import {
   ParseArticleInput,
   ParseArticleProgress,
   Sentence,
+  StudyActivityDay,
+  StudyActivityOverview,
+  StudyActivityRecord,
   VocabularyEntry,
   Word,
 } from '../shared/types';
+import {
+  activityIntensity,
+  calculateStreaks,
+  toDateKey,
+} from '../shared/activity';
 import { createSrsState } from '../shared/learning';
 import { parseArticleWithLlm } from './llm';
+
+interface ManualCheckIn {
+  date: string;
+  checkedAt: string;
+}
+
+interface ActivityAccumulator {
+  date: string;
+  sentenceCount: number;
+  wordCount: number;
+  sessionCount: number;
+  durationMs: number;
+  manualCheckIn: boolean;
+}
 
 const defaultSettings: AppSettings = {
   llm: {
@@ -157,11 +179,14 @@ export default class EchoStorage {
 
   private readonly settingsPath: string;
 
+  private readonly checkInsPath: string;
+
   constructor(rootPath: string) {
     this.rootPath = rootPath;
     this.articlesPath = path.join(rootPath, 'articles');
     this.vocabularyPath = path.join(rootPath, 'vocabulary', 'index.json');
     this.settingsPath = path.join(rootPath, 'settings.json');
+    this.checkInsPath = path.join(rootPath, 'check-ins.json');
   }
 
   async initialize() {
@@ -171,6 +196,7 @@ export default class EchoStorage {
     ]);
     await this.ensureJson(this.settingsPath, defaultSettings);
     await this.ensureJson(this.vocabularyPath, []);
+    await this.ensureJson(this.checkInsPath, []);
     const directories = await fs.readdir(this.articlesPath);
     if (directories.length === 0) {
       await this.writeArticle(seedArticle());
@@ -180,6 +206,159 @@ export default class EchoStorage {
 
   getDataPath() {
     return this.rootPath;
+  }
+
+  async getStudyActivity(year: number): Promise<StudyActivityOverview> {
+    const safeYear =
+      Number.isInteger(year) && year >= 2000 && year <= 2100
+        ? year
+        : new Date().getFullYear();
+    const [summaries, vocabulary, manualCheckIns] = await Promise.all([
+      this.listArticles(),
+      this.getVocabulary(),
+      this.readJson<ManualCheckIn[]>(this.checkInsPath),
+    ]);
+    const articles = await Promise.all(
+      summaries.map((summary) => this.getArticle(summary.id)),
+    );
+    const days = new Map<string, ActivityAccumulator>();
+    const records: StudyActivityRecord[] = [];
+
+    const getDay = (date: string) => {
+      const existing = days.get(date);
+      if (existing) return existing;
+      const created: ActivityAccumulator = {
+        date,
+        sentenceCount: 0,
+        wordCount: 0,
+        sessionCount: 0,
+        durationMs: 0,
+        manualCheckIn: false,
+      };
+      days.set(date, created);
+      return created;
+    };
+
+    articles.forEach((article) => {
+      Object.values(article.progress.sentenceAttempts).forEach((attempts) => {
+        attempts.forEach((attempt) => {
+          const day = getDay(toDateKey(attempt.attemptedAt));
+          day.sentenceCount += 1;
+        });
+      });
+      article.progress.sessions.forEach((session) => {
+        const occurredAt = session.completedAt || session.startedAt;
+        const date = toDateKey(occurredAt);
+        const day = getDay(date);
+        day.sessionCount += 1;
+        day.durationMs += Math.max(0, session.durationMs);
+        records.push({
+          id: `${article.meta.id}-${session.id}`,
+          date,
+          occurredAt,
+          kind: session.kind,
+          title: article.meta.title,
+          sentenceCount: session.kind === 'sentence' ? session.total : 0,
+          wordCount: session.kind === 'word' ? session.total : 0,
+          durationMs: Math.max(0, session.durationMs),
+        });
+      });
+    });
+
+    const wordRecords = new Map<string, StudyActivityRecord>();
+    vocabulary.forEach((entry) => {
+      if (!entry.srs.lastReviewedAt) return;
+      const date = toDateKey(entry.srs.lastReviewedAt);
+      getDay(date).wordCount += 1;
+      const current = wordRecords.get(date);
+      if (current) {
+        current.wordCount += 1;
+        if (entry.srs.lastReviewedAt > current.occurredAt) {
+          current.occurredAt = entry.srs.lastReviewedAt;
+        }
+      } else {
+        wordRecords.set(date, {
+          id: `words-${date}`,
+          date,
+          occurredAt: entry.srs.lastReviewedAt,
+          kind: 'word',
+          title: '全局生词本',
+          sentenceCount: 0,
+          wordCount: 1,
+          durationMs: 0,
+        });
+      }
+    });
+    wordRecords.forEach((record) => records.push(record));
+
+    manualCheckIns.forEach((checkIn) => {
+      const day = getDay(checkIn.date);
+      day.manualCheckIn = true;
+      records.push({
+        id: `check-in-${checkIn.date}`,
+        date: checkIn.date,
+        occurredAt: checkIn.checkedAt,
+        kind: 'check-in',
+        title: '完成今日打卡',
+        sentenceCount: 0,
+        wordCount: 0,
+        durationMs: 0,
+      });
+    });
+
+    const allDays: StudyActivityDay[] = Array.from(days.values())
+      .map((day) => {
+        const inferredSessions =
+          (day.sentenceCount > 0 ? 1 : 0) + (day.wordCount > 0 ? 1 : 0);
+        const sessionCount = Math.max(day.sessionCount, inferredSessions);
+        return {
+          ...day,
+          sessionCount,
+          intensity: activityIntensity(
+            day.sentenceCount,
+            day.wordCount,
+            sessionCount,
+            day.manualCheckIn,
+          ),
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const { currentStreak, longestStreak } = calculateStreaks(allDays);
+    const yearPrefix = `${safeYear}-`;
+    const yearDays = allDays.filter((day) => day.date.startsWith(yearPrefix));
+    const yearRecords = records
+      .filter((record) => record.date.startsWith(yearPrefix))
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+      .slice(0, 8);
+    const today = toDateKey(new Date());
+
+    return {
+      year: safeYear,
+      days: yearDays,
+      currentStreak,
+      longestStreak,
+      activeDays: yearDays.length,
+      totalPractices: allDays.reduce(
+        (total, day) => total + day.sessionCount,
+        0,
+      ),
+      todayCheckedIn:
+        (allDays.find((day) => day.date === today)?.intensity ?? 0) > 0,
+      records: yearRecords,
+    };
+  }
+
+  async checkInToday(): Promise<StudyActivityOverview> {
+    const now = new Date();
+    const date = toDateKey(now);
+    const checkIns = await this.readJson<ManualCheckIn[]>(this.checkInsPath);
+    if (!checkIns.some((checkIn) => checkIn.date === date)) {
+      await this.atomicWriteJson(this.checkInsPath, [
+        ...checkIns,
+        { date, checkedAt: now.toISOString() },
+      ]);
+    }
+    return this.getStudyActivity(now.getFullYear());
   }
 
   async getDashboard(): Promise<DashboardData> {

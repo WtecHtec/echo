@@ -7,11 +7,13 @@ import {
   DashboardData,
   LlmSettings,
   ParseArticleProgress,
+  StudyActivityOverview,
   VocabularyEntry,
 } from '../shared/types';
 import Icon from './components/Icon';
 import useSpeech from './hooks/useSpeech';
 import useWordAudio from './hooks/useWordAudio';
+import CalendarView from './views/CalendarView';
 import ImportView from './views/ImportView';
 import LibraryView from './views/LibraryView';
 import SentencePracticeView from './views/SentencePracticeView';
@@ -26,6 +28,7 @@ type View =
   | 'study'
   | 'sentence-practice'
   | 'word-practice'
+  | 'calendar'
   | 'settings';
 
 const fallbackSettings: AppSettings = {
@@ -46,7 +49,9 @@ const fallbackDashboard: DashboardData = {
 interface SidebarProps {
   active: View;
   dueWordCount: number;
-  onNavigate: (view: 'library' | 'word-practice' | 'settings') => void;
+  onNavigate: (
+    view: 'library' | 'word-practice' | 'calendar' | 'settings',
+  ) => void;
 }
 
 function Sidebar({ active, dueWordCount, onNavigate }: SidebarProps) {
@@ -87,6 +92,14 @@ function Sidebar({ active, dueWordCount, onNavigate }: SidebarProps) {
           <span>复习</span>
           {dueWordCount ? <i>{dueWordCount}</i> : null}
         </button>
+        <button
+          className={active === 'calendar' ? 'active' : ''}
+          onClick={() => onNavigate('calendar')}
+          type="button"
+        >
+          <Icon name="calendar" />
+          <span>日历</span>
+        </button>
       </nav>
       <button
         className={`sidebar-settings ${active === 'settings' ? 'active' : ''}`}
@@ -111,6 +124,8 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [parseProgress, setParseProgress] =
     useState<ParseArticleProgress | null>(null);
+  const [activity, setActivity] = useState<StudyActivityOverview | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [error, setError] = useState('');
   const { speak, stop, speakingText } = useSpeech(
     settings.speechRate,
@@ -141,6 +156,25 @@ export default function App() {
     const nextDashboard = await window.echo.getDashboard();
     setDashboard(nextDashboard);
   }, []);
+
+  const loadStudyActivity = useCallback(
+    async (year = new Date().getFullYear()) => {
+      setCalendarLoading(true);
+      setError('');
+      try {
+        setActivity(await window.echo.getStudyActivity(year));
+      } catch (activityError) {
+        setError(
+          activityError instanceof Error
+            ? activityError.message
+            : '无法加载学习足迹',
+        );
+      } finally {
+        setCalendarLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -191,12 +225,29 @@ export default function App() {
     }
   };
 
-  const navigate = (nextView: 'library' | 'word-practice' | 'settings') => {
+  const navigate = (
+    nextView: 'library' | 'word-practice' | 'calendar' | 'settings',
+  ) => {
     stopAudio();
     if (nextView === 'word-practice') {
       openWordPractice();
+    } else if (nextView === 'calendar') {
+      setView('calendar');
+      loadStudyActivity();
     } else {
       setView(nextView);
+    }
+  };
+
+  const checkInToday = async () => {
+    setError('');
+    try {
+      setActivity(await window.echo.checkInToday());
+    } catch (checkInError) {
+      setError(
+        checkInError instanceof Error ? checkInError.message : '打卡失败',
+      );
+      throw checkInError;
     }
   };
 
@@ -388,6 +439,15 @@ export default function App() {
           window.echo.testConnection(llm)
         }
         settings={settings}
+      />
+    );
+  } else if (view === 'calendar') {
+    content = (
+      <CalendarView
+        activity={activity}
+        loading={calendarLoading}
+        onCheckIn={checkInToday}
+        onYearChange={loadStudyActivity}
       />
     );
   } else if (view === 'study' && article) {

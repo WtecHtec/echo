@@ -134,6 +134,10 @@ const getStorage = () => {
 
 const registerIpcHandlers = () => {
   ipcMain.handle('echo:get-dashboard', () => getStorage().getDashboard());
+  ipcMain.handle('echo:get-study-activity', (_event, year: number) =>
+    getStorage().getStudyActivity(year),
+  );
+  ipcMain.handle('echo:check-in-today', () => getStorage().checkInToday());
   ipcMain.handle('echo:get-article', (_event, articleId: string) =>
     getStorage().getArticle(articleId),
   );

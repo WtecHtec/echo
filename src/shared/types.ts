@@ -126,8 +126,42 @@ export interface DashboardData {
   dataPath: string;
 }
 
+export interface StudyActivityDay {
+  date: string;
+  sentenceCount: number;
+  wordCount: number;
+  sessionCount: number;
+  durationMs: number;
+  manualCheckIn: boolean;
+  intensity: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface StudyActivityRecord {
+  id: string;
+  date: string;
+  occurredAt: string;
+  kind: 'sentence' | 'word' | 'check-in';
+  title: string;
+  sentenceCount: number;
+  wordCount: number;
+  durationMs: number;
+}
+
+export interface StudyActivityOverview {
+  year: number;
+  days: StudyActivityDay[];
+  currentStreak: number;
+  longestStreak: number;
+  activeDays: number;
+  totalPractices: number;
+  todayCheckedIn: boolean;
+  records: StudyActivityRecord[];
+}
+
 export interface EchoApi {
   getDashboard(): Promise<DashboardData>;
+  getStudyActivity(year: number): Promise<StudyActivityOverview>;
+  checkInToday(): Promise<StudyActivityOverview>;
   getArticle(articleId: string): Promise<ArticleData>;
   parseArticle(input: ParseArticleInput): Promise<ArticleData>;
   onParseProgress(
