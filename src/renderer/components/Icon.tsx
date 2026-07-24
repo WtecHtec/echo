@@ -20,7 +20,8 @@ export type IconName =
   | 'spark'
   | 'clock'
   | 'key'
-  | 'connection';
+  | 'connection'
+  | 'search';
 
 const paths: Record<IconName, ReactElement> = {
   articles: (
@@ -101,6 +102,12 @@ const paths: Record<IconName, ReactElement> = {
     <>
       <path d="M4 17.5a11 11 0 0 1 16 0M7 14a7 7 0 0 1 10 0M10 10.5a3 3 0 0 1 4 0" />
       <circle cx="12" cy="19" r=".75" fill="currentColor" stroke="none" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 4 4" />
     </>
   ),
 };

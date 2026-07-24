@@ -474,6 +474,35 @@ export default class EchoStorage {
     ]);
   }
 
+  async addWord(
+    articleId: string,
+    candidate: Omit<Word, 'id'>,
+  ): Promise<ArticleData> {
+    const article = await this.getArticle(articleId);
+    const normalizedWord = candidate.word.trim().toLocaleLowerCase();
+    const existing = article.words.find(
+      (word) => word.word.toLocaleLowerCase() === normalizedWord,
+    );
+    if (existing) return article;
+
+    const word: Word = {
+      ...candidate,
+      id: `w-${randomUUID()}`,
+      word: normalizedWord,
+    };
+    const words = [...article.words, word];
+    const meta = { ...article.meta, wordCount: words.length };
+    const updatedArticle = { ...article, meta, words };
+    const directory = await this.findArticleDirectory(articleId);
+
+    await Promise.all([
+      this.atomicWriteJson(path.join(directory, 'words.json'), words),
+      this.atomicWriteJson(path.join(directory, 'meta.json'), meta),
+    ]);
+    await this.mergeVocabulary(updatedArticle);
+    return updatedArticle;
+  }
+
   async getVocabulary(): Promise<VocabularyEntry[]> {
     return this.readJson<VocabularyEntry[]>(this.vocabularyPath);
   }

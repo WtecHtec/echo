@@ -11,6 +11,7 @@ import {
 } from '../shared/types';
 import Icon from './components/Icon';
 import useSpeech from './hooks/useSpeech';
+import useWordAudio from './hooks/useWordAudio';
 import ImportView from './views/ImportView';
 import LibraryView from './views/LibraryView';
 import SentencePracticeView from './views/SentencePracticeView';
@@ -115,6 +116,26 @@ export default function App() {
     settings.speechRate,
     settings.voiceName,
   );
+  const { speakWord, speakingWord, stopWord } = useWordAudio();
+
+  const stopAudio = useCallback(() => {
+    stop();
+    stopWord();
+  }, [stop, stopWord]);
+  const speakSentence = useCallback(
+    (text: string) => {
+      stopWord();
+      speak(text);
+    },
+    [speak, stopWord],
+  );
+  const playWord = useCallback(
+    (word: string) => {
+      stop();
+      speakWord(word);
+    },
+    [speakWord, stop],
+  );
 
   const refreshDashboard = useCallback(async () => {
     const nextDashboard = await window.echo.getDashboard();
@@ -171,7 +192,7 @@ export default function App() {
   };
 
   const navigate = (nextView: 'library' | 'word-practice' | 'settings') => {
-    stop();
+    stopAudio();
     if (nextView === 'word-practice') {
       openWordPractice();
     } else {
@@ -268,6 +289,24 @@ export default function App() {
     await refreshDashboard();
   };
 
+  const addContextWord = async (word: string) => {
+    if (!article) throw new Error('请先打开一篇文章');
+    setError('');
+    try {
+      const updatedArticle = await window.echo.addWord(article.meta.id, word);
+      setArticle(updatedArticle);
+      await refreshDashboard();
+      return updatedArticle;
+    } catch (addError) {
+      const message =
+        addError instanceof Error
+          ? addError.message
+          : '加入单词失败，请稍后重试';
+      setError(message);
+      throw new Error(message);
+    }
+  };
+
   const saveSettings = async (nextSettings: AppSettings) => {
     const saved = await window.echo.saveSettings(nextSettings);
     setSettings(saved);
@@ -356,19 +395,22 @@ export default function App() {
       <StudyView
         article={article}
         fontScale={settings.fontScale}
+        onAddWord={addContextWord}
         onBack={() => {
-          stop();
+          stopAudio();
           setView('library');
         }}
         onPracticeSentences={() => {
-          stop();
+          stopAudio();
           setView('sentence-practice');
         }}
         onPracticeWords={() => openWordPractice(article.meta.id)}
         onRateChange={updateSpeechRate}
-        onSpeak={speak}
+        onSpeak={speakSentence}
+        onSpeakWord={playWord}
         onStop={stop}
         speakingText={speakingText}
+        speakingWord={speakingWord}
         speechRate={settings.speechRate}
       />
     );
@@ -377,11 +419,11 @@ export default function App() {
       <SentencePracticeView
         article={article}
         onExit={() => {
-          stop();
+          stopAudio();
           setView('study');
         }}
         onSave={saveProgress}
-        onSpeak={speak}
+        onSpeak={speakSentence}
       />
     );
   } else if (view === 'word-practice') {
@@ -390,11 +432,11 @@ export default function App() {
         articleId={wordArticleId}
         entries={vocabulary}
         onExit={() => {
-          stop();
+          stopAudio();
           setView(article ? 'study' : 'library');
         }}
         onSave={saveVocabulary}
-        onSpeak={speak}
+        onSpeak={playWord}
       />
     );
   } else {

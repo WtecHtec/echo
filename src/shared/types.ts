@@ -13,6 +13,7 @@ export interface Word {
   ipa: string;
   meaning: string;
   level?: CefrLevel;
+  syllables?: string[];
 }
 
 export interface SrsState {
@@ -137,6 +138,7 @@ export interface EchoApi {
   copyOfflinePrompt(): Promise<void>;
   deleteArticle(articleId: string): Promise<void>;
   saveProgress(articleId: string, progress: ArticleProgress): Promise<void>;
+  addWord(articleId: string, word: string): Promise<ArticleData>;
   getVocabulary(): Promise<VocabularyEntry[]>;
   saveVocabulary(entries: VocabularyEntry[]): Promise<void>;
   getSettings(): Promise<AppSettings>;

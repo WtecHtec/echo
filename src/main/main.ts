@@ -22,6 +22,8 @@ import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import EchoStorage from './storage';
 import { testLlmConnection } from './llm';
+import lookupWord from './word-lookup';
+import { normalizeSelectedWord } from '../shared/words';
 import {
   AppSettings,
   ArticleProgress,
@@ -150,6 +152,21 @@ const registerIpcHandlers = () => {
     'echo:save-progress',
     (_event, articleId: string, progress: ArticleProgress) =>
       getStorage().saveProgress(articleId, progress),
+  );
+  ipcMain.handle(
+    'echo:add-word',
+    async (_event, articleId: string, selectedWord: string) => {
+      const normalizedWord = normalizeSelectedWord(selectedWord);
+      const article = await getStorage().getArticle(articleId);
+      if (
+        article.words.some(
+          (word) => word.word.toLocaleLowerCase() === normalizedWord,
+        )
+      ) {
+        return article;
+      }
+      return getStorage().addWord(articleId, await lookupWord(normalizedWord));
+    },
   );
   ipcMain.handle('echo:get-vocabulary', () => getStorage().getVocabulary());
   ipcMain.handle('echo:save-vocabulary', (_event, entries: VocabularyEntry[]) =>

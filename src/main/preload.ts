@@ -30,6 +30,8 @@ const echoApi: EchoApi = {
     ipcRenderer.invoke('echo:delete-article', articleId),
   saveProgress: (articleId: string, progress: ArticleProgress) =>
     ipcRenderer.invoke('echo:save-progress', articleId, progress),
+  addWord: (articleId: string, word: string) =>
+    ipcRenderer.invoke('echo:add-word', articleId, word),
   getVocabulary: () => ipcRenderer.invoke('echo:get-vocabulary'),
   saveVocabulary: (entries: VocabularyEntry[]) =>
     ipcRenderer.invoke('echo:save-vocabulary', entries),
