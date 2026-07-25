@@ -926,6 +926,7 @@ p {
 .study-page {
   min-height: 100%;
   background: var(--paper);
+  height: 100vh;
 }
 
 .study-header {
@@ -998,11 +999,13 @@ p {
   max-width: 1260px;
   min-height: calc(100vh - 84px);
   margin: 0 auto;
+  height:  100%;
 }
 
 .reading-canvas {
   min-width: 0;
   padding: 54px clamp(34px, 5vw, 74px) 100px;
+  overflow-y: auto;
 }
 
 .reading-intro {
@@ -1125,12 +1128,13 @@ p {
 .vocabulary-rail {
   border-left: 1px solid var(--line);
   background: #f1eee5;
+  overflow: auto;
 }
 
 .rail-sticky {
   position: sticky;
   z-index: 2;
-  top: 84px;
+  top: 0;
   background: #f1eee5;
   border-bottom: 1px solid var(--line);
 }
